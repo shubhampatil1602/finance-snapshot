@@ -14,7 +14,7 @@ import { requireUser } from "@/lib/auth/dal"
 import { getCategories, getEverPaidRecurringIds, getPaymentMethods, getRecurringItems } from "@/lib/data/queries"
 import { formatMonthLabel, monthOf } from "@/lib/dates"
 import { KIND_ORDER } from "@/lib/domain/snapshot"
-import type { RecurringItem } from "@/lib/types"
+import type { Category, DateStr, PaymentMethod, RecurringItem } from "@/lib/types"
 
 export const metadata: Metadata = { title: "Recurring" }
 
@@ -22,6 +22,77 @@ function ordinal(n: number) {
   const s = ["th", "st", "nd", "rd"]
   const v = n % 100
   return n + (s[(v - 20) % 10] || s[v] || s[0])
+}
+
+type FormProps = {
+  categories: Category[]
+  paymentMethods: PaymentMethod[]
+  today: DateStr
+}
+
+function Row({
+  item,
+  paidBefore,
+  categoryName,
+  methodLabel,
+  currency,
+  formProps,
+}: {
+  item: RecurringItem
+  paidBefore: boolean
+  categoryName: string | undefined
+  methodLabel: string | undefined
+  currency: string
+  formProps: FormProps
+}) {
+  return (
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="truncate text-sm font-medium">{item.name}</span>
+        <span className="text-xs text-muted-foreground">
+          Due on the {ordinal(item.dueDay)} · {categoryName ?? "—"}
+          {item.paymentMethodId && ` · ${methodLabel}`}
+        </span>
+        <span className="text-xs text-muted-foreground">
+          {formatMonthLabel(item.startMonth, "short")} – {item.endMonth ? formatMonthLabel(item.endMonth, "short") : "no end date"}
+        </span>
+      </div>
+      <Money amount={item.amount} currency={currency} className="text-sm font-medium" />
+      <div className="flex gap-1">
+        <RecurringDialog
+          {...formProps}
+          item={item}
+          trigger={
+            <Button variant="ghost" size="icon-sm" aria-label={`Edit ${item.name}`}>
+              <PencilIcon />
+            </Button>
+          }
+        />
+        <EndRecurringDialog
+          item={item}
+          today={formProps.today}
+          trigger={
+            <Button variant="ghost" size="icon-sm" aria-label={`End ${item.name}`}>
+              <CalendarOffIcon />
+            </Button>
+          }
+        />
+        {!paidBefore && (
+          <ActionButton
+            action={deleteRecurringAction}
+            fields={{ id: item.id }}
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Delete ${item.name}`}
+            successMessage={`${item.name} deleted`}
+            confirm={{ title: `Delete ${item.name}?`, description: "It has never been paid, so nothing else changes.", actionLabel: "Delete" }}
+          >
+            <Trash2Icon />
+          </ActionButton>
+        )}
+      </div>
+    </li>
+  )
 }
 
 async function Recurring() {
@@ -39,58 +110,17 @@ async function Recurring() {
   const active = items.filter((i) => !isEnded(i))
   const ended = items.filter(isEnded)
   const formProps = { categories, paymentMethods, today: user.today }
-
-  function Row({ item }: { item: RecurringItem }) {
-    const paidBefore = everPaid.has(item.id)
-    return (
-      <li className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="truncate text-sm font-medium">{item.name}</span>
-          <span className="text-xs text-muted-foreground">
-            Due on the {ordinal(item.dueDay)} · {categoryName.get(item.categoryId) ?? "—"}
-            {item.paymentMethodId && ` · ${methodLabel.get(item.paymentMethodId)}`}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {formatMonthLabel(item.startMonth, "short")} – {item.endMonth ? formatMonthLabel(item.endMonth, "short") : "no end date"}
-          </span>
-        </div>
-        <Money amount={item.amount} currency={user.currency} className="text-sm font-medium" />
-        <div className="flex gap-1">
-          <RecurringDialog
-            {...formProps}
-            item={item}
-            trigger={
-              <Button variant="ghost" size="icon-sm" aria-label={`Edit ${item.name}`}>
-                <PencilIcon />
-              </Button>
-            }
-          />
-          <EndRecurringDialog
-            item={item}
-            today={user.today}
-            trigger={
-              <Button variant="ghost" size="icon-sm" aria-label={`End ${item.name}`}>
-                <CalendarOffIcon />
-              </Button>
-            }
-          />
-          {!paidBefore && (
-            <ActionButton
-              action={deleteRecurringAction}
-              fields={{ id: item.id }}
-              variant="ghost"
-              size="icon-sm"
-              aria-label={`Delete ${item.name}`}
-              successMessage={`${item.name} deleted`}
-              confirm={{ title: `Delete ${item.name}?`, description: "It has never been paid, so nothing else changes.", actionLabel: "Delete" }}
-            >
-              <Trash2Icon />
-            </ActionButton>
-          )}
-        </div>
-      </li>
-    )
-  }
+  const renderRow = (item: RecurringItem) => (
+    <Row
+      key={item.id}
+      item={item}
+      paidBefore={everPaid.has(item.id)}
+      categoryName={categoryName.get(item.categoryId)}
+      methodLabel={item.paymentMethodId ? methodLabel.get(item.paymentMethodId) : undefined}
+      currency={user.currency}
+      formProps={formProps}
+    />
+  )
 
   return (
     <>
@@ -145,9 +175,7 @@ async function Recurring() {
                 </CardHeader>
                 <CardContent className="px-0">
                   <ul className="flex flex-col divide-y border-t">
-                    {rows.map((item) => (
-                      <Row key={item.id} item={item} />
-                    ))}
+                    {rows.map(renderRow)}
                   </ul>
                 </CardContent>
               </Card>
@@ -163,9 +191,7 @@ async function Recurring() {
               </CardHeader>
               <CardContent className="px-0">
                 <ul className="flex flex-col divide-y border-t">
-                  {ended.map((item) => (
-                    <Row key={item.id} item={item} />
-                  ))}
+                  {ended.map(renderRow)}
                 </ul>
               </CardContent>
             </Card>

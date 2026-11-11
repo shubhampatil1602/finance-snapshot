@@ -4,7 +4,7 @@ import { ArchiveIcon, ArchiveRestoreIcon, DownloadIcon, Trash2Icon } from "lucid
 import { deletePaymentMethodAction, setCategoryArchivedAction, setPaymentMethodArchivedAction } from "@/app/actions/settings"
 import { ActionButton } from "@/components/forms"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { PageHeader } from "@/components/finance/display"
@@ -178,10 +178,10 @@ async function Settings() {
           <CardDescription>Download everything in your account as JSON.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Button variant="outline" render={<a href="/api/export" download />} nativeButton={false}>
+          <a href="/api/export" download className={buttonVariants({ variant: "outline" })}>
             <DownloadIcon data-icon="inline-start" />
             Export JSON
-          </Button>
+          </a>
         </CardContent>
       </Card>
     </>
