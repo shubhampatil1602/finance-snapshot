@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { listTransactions, pageWindow, parseTransactionListParams, PAGE_SIZE } from "../domain/transaction-list"
+import { listTransactions, pageWindow, pageWindowItems, parseTransactionListParams, PAGE_SIZE } from "../domain/transaction-list"
 import type { Transaction } from "../types"
 
 const tx = (id: string, date: string, amount: number, categoryId = "food", extra: Partial<Transaction> = {}): Transaction => ({
@@ -78,5 +78,13 @@ describe("pageWindow", () => {
   it("adds gaps for many pages", () => {
     expect(pageWindow(5, 10)).toEqual([1, null, 4, 5, 6, null, 10])
     expect(pageWindow(1, 10)).toEqual([1, 2, null, 10])
+  })
+})
+
+describe("pageWindowItems", () => {
+  it("keys pages by number and gaps by the page before them", () => {
+    expect(pageWindowItems(5, 10).map((item) => item.key)).toEqual([
+      "page-1", "gap-after-1", "page-4", "page-5", "page-6", "gap-after-6", "page-10",
+    ])
   })
 })

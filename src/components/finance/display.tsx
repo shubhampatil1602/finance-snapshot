@@ -56,7 +56,7 @@ export function MonthSwitcher({
   return (
     <div className="flex items-center gap-2">
       <nav aria-label="Month" className="flex items-center rounded-lg border bg-background p-0.5 dark:bg-input/30">
-        <Button variant="ghost" size="icon-sm" render={<Link href={href(prevMonth(month))} aria-label="Previous month" />} nativeButton={false}>
+        <Button variant="ghost" size="icon-sm" aria-label="Previous month" render={<Link href={href(prevMonth(month))} />} nativeButton={false}>
           <ChevronLeftIcon />
         </Button>
         <span className="min-w-32 px-1 text-center text-sm font-medium tabular-nums">{formatMonthLabel(month)}</span>
@@ -65,7 +65,7 @@ export function MonthSwitcher({
             <ChevronRightIcon />
           </Button>
         ) : (
-          <Button variant="ghost" size="icon-sm" render={<Link href={href(nextMonth(month))} aria-label="Next month" />} nativeButton={false}>
+          <Button variant="ghost" size="icon-sm" aria-label="Next month" render={<Link href={href(nextMonth(month))} />} nativeButton={false}>
             <ChevronRightIcon />
           </Button>
         )}

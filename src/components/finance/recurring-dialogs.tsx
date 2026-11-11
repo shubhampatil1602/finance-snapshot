@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { TriangleAlertIcon } from "lucide-react"
 import { createRecurringAction, endRecurringAction, markPaidAction, updateRecurringAction } from "@/app/actions/recurring"
 import { FormError, SubmitButton, useActionForm, useOnSuccess } from "@/components/forms"
+import { fieldInvalid } from "@/lib/action-state"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -51,51 +52,60 @@ interface RecurringFormProps {
   item?: RecurringItem
 }
 
+/** Kind and category move together: a new SIP defaults to the "Investments" category when the user has one. */
+function useKindAndCategory(expenseCategories: Category[], item?: RecurringItem) {
+  const [kind, setKind] = useState<Kind>(item?.kind ?? "bill")
+  const [categoryId, setCategoryId] = useState(item?.categoryId ?? expenseCategories[0]?.id ?? "")
+
+  function changeKind(next: Kind) {
+    setKind(next)
+    if (!item && next === "mutual_fund") {
+      const investments = expenseCategories.find((c) => c.name.trim().toLowerCase() === "investments")
+      if (investments) setCategoryId(investments.id)
+    }
+  }
+
+  return { kind, changeKind, categoryId, setCategoryId }
+}
+
+/** Offer "already paid this month" only for new items whose schedule includes a due date already passed this month. */
+function canOfferAlreadyPaid(day: number, startMonth: string, endMonth: string, today: DateStr) {
+  const validDay = Number.isInteger(day) && day >= 1 && day <= 31
+  return (
+    validDay &&
+    isMonth(startMonth) &&
+    canMarkAlreadyPaid({ dueDay: day, startMonth, endMonth: isMonth(endMonth) ? endMonth : undefined }, today)
+  )
+}
+
 function RecurringForm({ categories, paymentMethods, today, item, onDone }: RecurringFormProps & { onDone: () => void }) {
   const editing = Boolean(item)
   const { state, pending, formProps } = useActionForm(editing ? updateRecurringAction : createRecurringAction)
   const currentMonth = monthOf(today)
-  const [kind, setKind] = useState<Kind>(item?.kind ?? "bill")
+  const expenseCategories = categories.filter((c) => c.type === "expense" && (!c.archived || c.id === item?.categoryId))
+  const methods = paymentMethods.filter((m) => !m.archived || m.id === item?.paymentMethodId)
+  const { kind, changeKind, categoryId, setCategoryId } = useKindAndCategory(expenseCategories, item)
   const [dueDay, setDueDay] = useState(String(item?.dueDay ?? ""))
   const [startMonth, setStartMonth] = useState<MonthStr>(item?.startMonth ?? currentMonth)
   const [endMonth, setEndMonth] = useState<string>(item?.endMonth ?? "")
   const [methodId, setMethodId] = useState(item?.paymentMethodId ?? "")
   const [alreadyPaid, setAlreadyPaid] = useState(false)
 
-  const expenseCategories = categories.filter((c) => c.type === "expense" && (!c.archived || c.id === item?.categoryId))
-  const methods = paymentMethods.filter((m) => !m.archived || m.id === item?.paymentMethodId)
-  const isCreditCard = methods.find((m) => m.id === methodId)?.type === "credit_card"
-  const [categoryId, setCategoryId] = useState(item?.categoryId ?? expenseCategories[0]?.id ?? "")
-
-  function changeKind(next: Kind) {
-    setKind(next)
-    // New SIPs default to the "Investments" category when the user has one.
-    if (!editing && next === "mutual_fund") {
-      const investments = expenseCategories.find((c) => c.name.trim().toLowerCase() === "investments")
-      if (investments) setCategoryId(investments.id)
-    }
-  }
-
   const day = Number(dueDay)
-  const validDay = Number.isInteger(day) && day >= 1 && day <= 31
-  const showAlreadyPaid =
-    !editing &&
-    validDay &&
-    isMonth(startMonth) &&
-    canMarkAlreadyPaid({ dueDay: day, startMonth, endMonth: isMonth(endMonth) ? endMonth : undefined }, today)
+  const showAlreadyPaid = !editing && canOfferAlreadyPaid(day, startMonth, endMonth, today)
+  const isEmi = kind === "emi"
 
   useOnSuccess(state, () => {
     toast.success(editing ? "Recurring item updated" : "Recurring item added")
     onDone()
   })
-  const err = (name: string) => state.fieldErrors?.[name]
 
   return (
     <form {...formProps}>
       {item && <input type="hidden" name="id" value={item.id} />}
       <FieldGroup>
         <FormError state={state} />
-        <Field data-invalid={Boolean(err("name")) || undefined}>
+        <Field data-invalid={fieldInvalid(state, "name")}>
           <FieldLabel htmlFor="rc-name">Name</FieldLabel>
           <Input id="rc-name" name="name" defaultValue={item?.name} maxLength={60} placeholder="Rent, Netflix, Phone EMI, Index fund SIP…" required autoFocus />
         </Field>
@@ -109,11 +119,11 @@ function RecurringForm({ categories, paymentMethods, today, item, onDone }: Recu
               <NativeSelectOption value="mutual_fund">Mutual fund (SIP)</NativeSelectOption>
             </NativeSelect>
           </Field>
-          <Field data-invalid={Boolean(err("amount")) || undefined}>
+          <Field data-invalid={fieldInvalid(state, "amount")}>
             <FieldLabel htmlFor="rc-amount">Amount</FieldLabel>
             <Input id="rc-amount" name="amount" inputMode="decimal" defaultValue={item ? toMajorString(item.amount) : ""} placeholder="0.00" required />
           </Field>
-          <Field data-invalid={Boolean(err("dueDay")) || undefined}>
+          <Field data-invalid={fieldInvalid(state, "dueDay")}>
             <FieldLabel htmlFor="rc-due">Due day</FieldLabel>
             <Input id="rc-due" name="dueDay" type="number" min={1} max={31} value={dueDay} onChange={(e) => setDueDay(e.target.value)} required />
           </Field>
@@ -127,12 +137,12 @@ function RecurringForm({ categories, paymentMethods, today, item, onDone }: Recu
               ))}
             </NativeSelect>
           </Field>
-          <Field data-invalid={Boolean(err("startMonth")) || undefined}>
+          <Field data-invalid={fieldInvalid(state, "startMonth")}>
             <FieldLabel htmlFor="rc-start">Start month</FieldLabel>
             <Input id="rc-start" name="startMonth" type="month" value={startMonth} onChange={(e) => setStartMonth(e.target.value)} required />
           </Field>
-          <Field data-invalid={Boolean(err("endMonth")) || undefined}>
-            <FieldLabel htmlFor="rc-end">End month{kind === "emi" ? "" : " (optional)"}</FieldLabel>
+          <Field data-invalid={fieldInvalid(state, "endMonth")}>
+            <FieldLabel htmlFor="rc-end">End month{isEmi ? "" : " (optional)"}</FieldLabel>
             <Input
               id="rc-end"
               name="endMonth"
@@ -140,62 +150,98 @@ function RecurringForm({ categories, paymentMethods, today, item, onDone }: Recu
               min={startMonth}
               value={endMonth}
               onChange={(e) => setEndMonth(e.target.value)}
-              required={kind === "emi"}
+              required={isEmi}
             />
           </Field>
         </div>
-        {kind === "emi" && (
+        {isEmi && (
           <FieldDescription>
             Log only the EMI, never the full purchase. Use the amount on your statement — no interest maths.
           </FieldDescription>
         )}
-        {methods.length > 0 && (
-          <Field>
-            <FieldLabel htmlFor="rc-method">Default payment method</FieldLabel>
-            <NativeSelect id="rc-method" name="paymentMethodId" className="w-full" value={methodId} onChange={(e) => setMethodId(e.target.value)}>
-              <NativeSelectOption value="">None</NativeSelectOption>
-              {methods.map((m) => (
-                <NativeSelectOption key={m.id} value={m.id}>
-                  {m.label}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </Field>
-        )}
-        {isCreditCard && (
-          <Alert>
-            <TriangleAlertIcon />
-            <AlertDescription>
-              Paid by credit card: this counts as spent on the day it&apos;s charged. Never log the credit card bill
-              payment itself, or you&apos;ll count it twice.
-            </AlertDescription>
-          </Alert>
-        )}
+        <DefaultMethodField methods={methods} value={methodId} onChange={setMethodId} />
         {showAlreadyPaid && (
-          <Field orientation="horizontal">
-            <Checkbox id="rc-paid" name="alreadyPaid" checked={alreadyPaid} onCheckedChange={(v) => setAlreadyPaid(Boolean(v))} />
-            <FieldLabel htmlFor="rc-paid" className="font-normal">
-              Already paid this month
-            </FieldLabel>
-          </Field>
-        )}
-        {showAlreadyPaid && alreadyPaid && (
-          <Field data-invalid={Boolean(err("paidDate")) || undefined}>
-            <FieldLabel htmlFor="rc-paid-date">Paid on</FieldLabel>
-            <Input
-              id="rc-paid-date"
-              name="paidDate"
-              type="date"
-              defaultValue={effectiveDueDate(day, monthOf(today))}
-              min={firstDayOf(monthOf(today))}
-              max={today}
-              required
-            />
-          </Field>
+          <AlreadyPaidFields
+            day={day}
+            today={today}
+            checked={alreadyPaid}
+            onCheckedChange={setAlreadyPaid}
+            dateInvalid={fieldInvalid(state, "paidDate")}
+          />
         )}
         <SubmitButton pending={pending} className="w-full">{editing ? "Save changes" : "Add recurring item"}</SubmitButton>
       </FieldGroup>
     </form>
+  )
+}
+
+/** Default payment method select, plus the credit-card double-counting warning. */
+function DefaultMethodField({ methods, value, onChange }: { methods: PaymentMethod[]; value: string; onChange: (id: string) => void }) {
+  if (methods.length === 0) return null
+  const isCreditCard = methods.find((m) => m.id === value)?.type === "credit_card"
+  return (
+    <>
+      <Field>
+        <FieldLabel htmlFor="rc-method">Default payment method</FieldLabel>
+        <NativeSelect id="rc-method" name="paymentMethodId" className="w-full" value={value} onChange={(e) => onChange(e.target.value)}>
+          <NativeSelectOption value="">None</NativeSelectOption>
+          {methods.map((m) => (
+            <NativeSelectOption key={m.id} value={m.id}>
+              {m.label}
+            </NativeSelectOption>
+          ))}
+        </NativeSelect>
+      </Field>
+      {isCreditCard && (
+        <Alert>
+          <TriangleAlertIcon />
+          <AlertDescription>
+            Paid by credit card: this counts as spent on the day it&apos;s charged. Never log the credit card bill
+            payment itself, or you&apos;ll count it twice.
+          </AlertDescription>
+        </Alert>
+      )}
+    </>
+  )
+}
+
+function AlreadyPaidFields({
+  day,
+  today,
+  checked,
+  onCheckedChange,
+  dateInvalid,
+}: {
+  day: number
+  today: DateStr
+  checked: boolean
+  onCheckedChange: (checked: boolean) => void
+  dateInvalid: true | undefined
+}) {
+  const month = monthOf(today)
+  return (
+    <>
+      <Field orientation="horizontal">
+        <Checkbox id="rc-paid" name="alreadyPaid" checked={checked} onCheckedChange={(v) => onCheckedChange(Boolean(v))} />
+        <FieldLabel htmlFor="rc-paid" className="font-normal">
+          Already paid this month
+        </FieldLabel>
+      </Field>
+      {checked && (
+        <Field data-invalid={dateInvalid}>
+          <FieldLabel htmlFor="rc-paid-date">Paid on</FieldLabel>
+          <Input
+            id="rc-paid-date"
+            name="paidDate"
+            type="date"
+            defaultValue={effectiveDueDate(day, month)}
+            min={firstDayOf(month)}
+            max={today}
+            required
+          />
+        </Field>
+      )}
+    </>
   )
 }
 
@@ -256,7 +302,6 @@ function MarkPaidForm({
     onDone()
   })
   const methods = paymentMethods.filter((m) => !m.archived || m.id === item.paymentMethodId)
-  const err = (name: string) => state.fieldErrors?.[name]
   return (
     <form {...formProps}>
       <input type="hidden" name="recurringId" value={item.id} />
@@ -264,11 +309,11 @@ function MarkPaidForm({
       <FieldGroup>
         <FormError state={state} />
         <div className="grid grid-cols-2 gap-3">
-          <Field data-invalid={Boolean(err("amount")) || undefined}>
+          <Field data-invalid={fieldInvalid(state, "amount")}>
             <FieldLabel htmlFor="mp-amount">Amount</FieldLabel>
             <Input id="mp-amount" name="amount" inputMode="decimal" defaultValue={toMajorString(amount)} required autoFocus />
           </Field>
-          <Field data-invalid={Boolean(err("date")) || undefined}>
+          <Field data-invalid={fieldInvalid(state, "date")}>
             <FieldLabel htmlFor="mp-date">Paid on</FieldLabel>
             <Input id="mp-date" name="date" type="date" defaultValue={today} min={firstDayOf(forMonth)} max={today} required />
           </Field>

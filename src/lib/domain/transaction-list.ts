@@ -91,6 +91,18 @@ export function pageWindow(page: number, pageCount: number): (number | null)[] {
   return out
 }
 
+/**
+ * `pageWindow` with a React key per entry. A gap is keyed by the page it follows
+ * ("gap-after-1"), so its key names a fixed spot in the window, not an array slot.
+ */
+export function pageWindowItems(page: number, pageCount: number): { key: string; page: number | null }[] {
+  const items: { key: string; page: number | null }[] = []
+  for (const p of pageWindow(page, pageCount)) {
+    items.push({ key: p === null ? `gap-after-${items.at(-1)?.page}` : `page-${p}`, page: p })
+  }
+  return items
+}
+
 /** `/transactions?…` for the given month + params, omitting defaults so URLs stay clean. */
 export function transactionsHref(
   month: MonthStr,
