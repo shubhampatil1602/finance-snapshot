@@ -25,7 +25,7 @@ test("setup a month, mark paid / unmark, goals, and isolation", async ({ page, b
   const username = `e2e_${uid()}`
   await register(page, username)
 
-  // With nothing logged and a recurring bill, safe-to-spend is negative (checked below once rent exists).
+  // A new account starts at zero.
   await expect(safeToSpend(page)).toHaveText("₹0")
 
   // Quick add salary: open, switch to income, type amount, Enter.

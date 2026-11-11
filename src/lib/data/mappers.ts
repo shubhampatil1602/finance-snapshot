@@ -30,14 +30,14 @@ export const toCategory = (d: CategoryDoc): Category => ({
   id: d._id.toHexString(),
   name: d.name,
   type: d.type,
-  monthlyBudget: d.monthlyBudget ?? undefined,
+  monthlyBudget: d.monthlyBudget,
   archived: d.archived,
 })
 
 export const toPaymentMethod = (d: PaymentMethodDoc): PaymentMethod => ({
   id: d._id.toHexString(),
   type: d.type,
-  name: d.name ?? undefined,
+  name: d.name,
   archived: d.archived,
   label: paymentMethodLabel(d.type, d.name),
 })
@@ -49,9 +49,9 @@ export const toTransaction = (d: TransactionDoc): Transaction => ({
   date: d.date,
   categoryId: d.categoryId.toHexString(),
   paymentMethodId: d.paymentMethodId?.toHexString(),
-  note: d.note ?? undefined,
+  note: d.note,
   recurringId: d.recurringId?.toHexString(),
-  forMonth: d.forMonth ?? undefined,
+  forMonth: d.forMonth,
 })
 
 export const toRecurring = (d: RecurringDoc): RecurringItem => ({
@@ -63,14 +63,14 @@ export const toRecurring = (d: RecurringDoc): RecurringItem => ({
   categoryId: d.categoryId.toHexString(),
   paymentMethodId: d.paymentMethodId?.toHexString(),
   startMonth: d.startMonth,
-  endMonth: d.endMonth ?? undefined,
+  endMonth: d.endMonth,
 })
 
 export const toGoal = (d: GoalDoc): Goal => ({
   id: d._id.toHexString(),
   name: d.name,
   target: d.target,
-  targetDate: d.targetDate ?? undefined,
+  targetDate: d.targetDate,
   archived: d.archived,
 })
 
