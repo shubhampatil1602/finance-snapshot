@@ -81,7 +81,7 @@ export function TotalsRow({ snapshot, currency }: { snapshot: Snapshot; currency
         {items.map((i) => (
           <div key={i.label} className="flex min-w-0 flex-col gap-1 bg-card px-4 py-3" title={i.hint}>
             <dt className="text-xs font-medium text-muted-foreground">{i.label}</dt>
-            <dd className="truncate text-base font-semibold tabular-nums sm:text-lg">{formatMoney(i.value, currency)}</dd>
+            <dd className="truncate text-base font-semibold tracking-tight sm:text-lg">{formatMoney(i.value, currency)}</dd>
           </div>
         ))}
       </dl>
