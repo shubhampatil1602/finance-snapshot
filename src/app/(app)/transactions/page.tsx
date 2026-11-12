@@ -60,7 +60,8 @@ async function Transactions({ searchParams }: { searchParams: PageProps<"/transa
   const usedCategoryIds = new Set(transactions.map((t) => t.categoryId))
   const usedMethodIds = new Set(transactions.flatMap((t) => (t.paymentMethodId ? [t.paymentMethodId] : [])))
   const params = parseTransactionListParams(query, month, { categoryIds: usedCategoryIds, methodIds: usedMethodIds })
-  const { rows, total, page, pageCount, start } = listTransactions(transactions, params)
+  const { rows, total, spent, income, page, pageCount, start } = listTransactions(transactions, params)
+  const filtered = isFiltered(params)
   const formProps: FormProps = {
     categories,
     paymentMethods,
@@ -107,15 +108,18 @@ async function Transactions({ searchParams }: { searchParams: PageProps<"/transa
           {total === 0 ? (
             <NoMatches clearHref={transactionsHref(month, currentMonth, {})} />
           ) : (
-            <TransactionsTable
-              rows={rows}
-              editable={editable}
-              currency={user.currency}
-              formProps={formProps}
-              categoryName={categoryName}
-              methodLabel={methodLabel}
-              recurringName={recurringName}
-            />
+            <>
+              <TotalsSummary spent={spent} income={income} count={total} filtered={filtered} currency={user.currency} />
+              <TransactionsTable
+                rows={rows}
+                editable={editable}
+                currency={user.currency}
+                formProps={formProps}
+                categoryName={categoryName}
+                methodLabel={methodLabel}
+                recurringName={recurringName}
+              />
+            </>
           )}
           {pageCount > 1 && (
             <TransactionsPagination month={month} currentMonth={currentMonth} params={params} page={page} pageCount={pageCount} />
@@ -168,7 +172,7 @@ function ResultCount({
   total: number
   unfiltered: number
 }) {
-  const filtered = Boolean(params.q || params.category || params.method || params.date)
+  const filtered = isFiltered(params)
   return (
     <p className="text-sm text-muted-foreground tabular-nums">
       {total === 0
@@ -176,6 +180,10 @@ function ResultCount({
         : `${start + 1}–${start + shown} of ${total}${filtered ? ` (filtered from ${unfiltered})` : ""}`}
     </p>
   )
+}
+
+function isFiltered(params: TransactionListParams) {
+  return Boolean(params.q || params.category || params.method || params.from || params.to)
 }
 
 function NoMatches({ clearHref }: { clearHref: string }) {
@@ -261,6 +269,42 @@ function TransactionsTable({
             ))}
           </TableBody>
         </Table>
+      </CardContent>
+    </Card>
+  )
+}
+
+/** Sums over every transaction matching the filters, across all pages. */
+function TotalsSummary({
+  spent,
+  income,
+  count,
+  filtered,
+  currency,
+}: {
+  spent: number
+  income: number
+  count: number
+  filtered: boolean
+  currency: string
+}) {
+  return (
+    <Card className="py-0">
+      <CardContent className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3 px-4 py-3">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-sm text-muted-foreground">Total spent</span>
+          <Money amount={spent} currency={currency} className="text-2xl font-semibold tracking-tight proportional-nums" />
+        </div>
+        {income > 0 && (
+          <div className="flex flex-col gap-0.5">
+            <span className="text-sm text-muted-foreground">Total income</span>
+            <Money amount={income} currency={currency} className="text-2xl font-semibold tracking-tight proportional-nums text-success" />
+          </div>
+        )}
+        <p className="text-sm text-muted-foreground tabular-nums sm:ml-auto">
+          {count} {count === 1 ? "transaction" : "transactions"}
+          {filtered ? " matching filters" : " this month"}
+        </p>
       </CardContent>
     </Card>
   )

@@ -18,14 +18,16 @@ export interface TransactionListParams {
   q?: string
   category?: string
   method?: string
-  date?: DateStr
+  /** Inclusive date range; either end may be open. */
+  from?: DateStr
+  to?: DateStr
   sort: TransactionSort
   page: number
 }
 
 const first = (raw: unknown) => (Array.isArray(raw) ? raw[0] : raw)
 
-/** Parse `?category=&date=&sort=&page=`, dropping anything invalid for this month. */
+/** Parse `?category=&from=&to=&sort=&page=`, dropping anything invalid for this month. */
 export function parseTransactionListParams(
   raw: Record<string, string | string[] | undefined>,
   month: MonthStr,
@@ -34,14 +36,21 @@ export function parseTransactionListParams(
   const q = first(raw.q)
   const category = first(raw.category)
   const method = first(raw.method)
-  const date = first(raw.date)
+  const inMonth = (d: unknown): d is DateStr => isDate(d) && monthOf(d) === month
+  let from = first(raw.from)
+  let to = first(raw.to)
+  from = inMonth(from) ? from : undefined
+  to = inMonth(to) ? to : undefined
+  // Accept a reversed range rather than showing nothing.
+  if (from && to && from > to) [from, to] = [to, from]
   const sort = first(raw.sort)
   const page = Number(first(raw.page))
   return {
     q: typeof q === "string" && q.trim() ? q.trim().slice(0, 100) : undefined,
     category: typeof category === "string" && known.categoryIds.has(category) ? category : undefined,
     method: typeof method === "string" && known.methodIds.has(method) ? method : undefined,
-    date: isDate(date) && monthOf(date) === month ? date : undefined,
+    from,
+    to,
     sort: TRANSACTION_SORTS.includes(sort as TransactionSort) ? (sort as TransactionSort) : "newest",
     page: Number.isInteger(page) && page > 0 ? page : 1,
   }
@@ -54,7 +63,8 @@ export function listTransactions(transactions: Transaction[], params: Transactio
     (t) =>
       (!params.category || t.categoryId === params.category) &&
       (!params.method || t.paymentMethodId === params.method) &&
-      (!params.date || t.date === params.date) &&
+      (!params.from || t.date >= params.from) &&
+      (!params.to || t.date <= params.to) &&
       (!needle || (t.note?.toLowerCase().includes(needle) ?? false)),
   )
   const sorted =
@@ -66,12 +76,22 @@ export function listTransactions(transactions: Transaction[], params: Transactio
           ? filtered.toSorted((a, b) => a.amount - b.amount)
           : filtered
 
+  // Totals cover every match, not just the current page.
+  let spent = 0
+  let income = 0
+  for (const t of filtered) {
+    if (t.type === "income") income += t.amount
+    else spent += t.amount
+  }
+
   const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
   const page = Math.min(params.page, pageCount)
   const start = (page - 1) * PAGE_SIZE
   return {
     rows: sorted.slice(start, start + PAGE_SIZE),
     total: sorted.length,
+    spent,
+    income,
     page,
     pageCount,
     start,
@@ -114,7 +134,8 @@ export function transactionsHref(
   if (params.q) qs.set("q", params.q)
   if (params.category) qs.set("category", params.category)
   if (params.method) qs.set("method", params.method)
-  if (params.date) qs.set("date", params.date)
+  if (params.from) qs.set("from", params.from)
+  if (params.to) qs.set("to", params.to)
   if (params.sort && params.sort !== "newest") qs.set("sort", params.sort)
   if (params.page && params.page > 1) qs.set("page", String(params.page))
   const query = qs.toString()

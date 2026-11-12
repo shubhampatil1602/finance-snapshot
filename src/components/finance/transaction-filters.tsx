@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
 import { formatDateLabel } from "@/lib/dates"
+import type { DateRange } from "react-day-picker"
 import { SORT_LABEL, TRANSACTION_SORTS, transactionsHref, type TransactionListParams, type TransactionSort } from "@/lib/domain/transaction-list"
 import type { DateStr, MonthStr } from "@/lib/types"
 
@@ -19,6 +20,15 @@ const ALL = "all"
 const toDate = (d: DateStr) => {
   const [y, m, day] = d.split("-").map(Number)
   return new Date(y, m - 1, day)
+}
+
+const toDateStr = (d: Date) => format(d, "yyyy-MM-dd") as DateStr
+
+function rangeLabel(from?: DateStr, to?: DateStr) {
+  if (from && to) return from === to ? formatDateLabel(from) : `${formatDateLabel(from)} – ${formatDateLabel(to)}`
+  if (from) return `From ${formatDateLabel(from)}`
+  if (to) return `Until ${formatDateLabel(to)}`
+  return "Any date"
 }
 
 export function TransactionFilters({
@@ -42,6 +52,8 @@ export function TransactionFilters({
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [dateOpen, setDateOpen] = useState(false)
+  // Range being picked in the open calendar; applied when complete or when the popover closes.
+  const [draft, setDraft] = useState<DateRange | undefined>()
   const [query, setQuery] = useState(params.q ?? "")
   const debounce = useRef<ReturnType<typeof setTimeout>>(undefined)
   useEffect(() => () => clearTimeout(debounce.current), [])
@@ -59,7 +71,22 @@ export function TransactionFilters({
     debounce.current = setTimeout(() => update({ q: value.trim() || undefined }), 300)
   }
 
-  const hasFilters = Boolean(params.q || params.category || params.method || params.date || params.sort !== "newest")
+  const applyRange = (range: DateRange | undefined) =>
+    update({ from: range?.from && toDateStr(range.from), to: range?.to && toDateStr(range.to) })
+
+  const openDates = (open: boolean) => {
+    setDateOpen(open)
+    if (open) setDraft(params.from ? { from: toDate(params.from), to: params.to ? toDate(params.to) : undefined } : undefined)
+    else if (draft?.from) {
+      const from = toDateStr(draft.from)
+      const to = toDateStr(draft.to ?? draft.from)
+      // Don't reset to page 1 when the popover closes without a change.
+      if (from !== params.from || to !== params.to) update({ from, to })
+    }
+  }
+
+  const hasDates = Boolean(params.from || params.to)
+  const hasFilters = Boolean(params.q || params.category || params.method || hasDates || params.sort !== "newest")
   const methodItems = [{ value: ALL, label: "All payment methods" }, ...methods.map((m) => ({ value: m.id, label: m.label }))]
   const categoryItems = [{ value: ALL, label: "All categories" }, ...categories.map((c) => ({ value: c.id, label: c.name }))]
   const sortItems = TRANSACTION_SORTS.map((s) => ({ value: s, label: SORT_LABEL[s] }))
@@ -128,28 +155,52 @@ export function TransactionFilters({
         </Select>
       )}
 
-      <Popover open={dateOpen} onOpenChange={setDateOpen}>
+      <Popover open={dateOpen} onOpenChange={openDates}>
         <PopoverTrigger
           render={
-            <Button variant="outline" className={params.date ? undefined : "text-muted-foreground"} aria-label="Filter by date">
+            <Button variant="outline" className={hasDates ? undefined : "text-muted-foreground"} aria-label="Filter by date range">
               <CalendarIcon data-icon="inline-start" />
-              {params.date ? formatDateLabel(params.date) : "Any date"}
+              {rangeLabel(params.from, params.to)}
             </Button>
           }
         />
         <PopoverContent className="w-auto p-0" align="start">
           <Calendar
-            mode="single"
+            mode="range"
             month={toDate(`${month}-01`)}
             hideNavigation
             showOutsideDays={false}
-            selected={params.date ? toDate(params.date) : undefined}
+            selected={draft}
             disabled={(d) => !active.has(format(d, "yyyy-MM-dd"))}
-            onSelect={(d) => {
-              setDateOpen(false)
-              update({ date: d ? format(d, "yyyy-MM-dd") : undefined })
+            onSelect={(range) => {
+              // First click picks a start; a second, different day completes the range.
+              if (range?.from && range.to && range.from.getTime() !== range.to.getTime() && draft?.from) {
+                setDraft(undefined)
+                setDateOpen(false)
+                applyRange(range)
+              } else {
+                setDraft(range ? { from: range.from, to: undefined } : undefined)
+              }
             }}
           />
+          <div className="flex items-center justify-between gap-2 border-t p-2">
+            <span className="text-xs text-muted-foreground">
+              {draft?.from ? "Pick an end date, or close for one day" : "Pick a start date"}
+            </span>
+            {hasDates && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setDraft(undefined)
+                  setDateOpen(false)
+                  update({ from: undefined, to: undefined })
+                }}
+              >
+                Clear dates
+              </Button>
+            )}
+          </div>
         </PopoverContent>
       </Popover>
 
@@ -172,7 +223,7 @@ export function TransactionFilters({
         <Button variant="ghost" onClick={() => {
             clearTimeout(debounce.current)
             setQuery("")
-            update({ q: undefined, category: undefined, method: undefined, date: undefined, sort: "newest" })
+            update({ q: undefined, category: undefined, method: undefined, from: undefined, to: undefined, sort: "newest" })
           }}>
           <XIcon data-icon="inline-start" />
           Clear

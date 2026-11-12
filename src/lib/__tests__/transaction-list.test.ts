@@ -23,22 +23,24 @@ describe("parseTransactionListParams", () => {
   const known = { categoryIds: new Set(["food", "rent"]), methodIds: new Set(["upi"]) }
 
   it("accepts valid params", () => {
-    expect(parseTransactionListParams({ q: "  pav ", category: "rent", method: "upi", date: "2026-11-08", sort: "amount-asc", page: "2" }, "2026-11", known)).toEqual({
+    expect(parseTransactionListParams({ q: "  pav ", category: "rent", method: "upi", from: "2026-11-01", to: "2026-11-08", sort: "amount-asc", page: "2" }, "2026-11", known)).toEqual({
       q: "pav",
       category: "rent",
       method: "upi",
-      date: "2026-11-08",
+      from: "2026-11-01",
+      to: "2026-11-08",
       sort: "amount-asc",
       page: 2,
     })
   })
 
   it("drops unknown categories, dates outside the month and junk", () => {
-    expect(parseTransactionListParams({ q: "   ", category: "nope", method: "x", date: "2026-10-08", sort: "x", page: "-3" }, "2026-11", known)).toEqual({
+    expect(parseTransactionListParams({ q: "   ", category: "nope", method: "x", from: "2026-10-08", to: "nope", sort: "x", page: "-3" }, "2026-11", known)).toEqual({
       q: undefined,
       category: undefined,
       method: undefined,
-      date: undefined,
+      from: undefined,
+      to: undefined,
       sort: "newest",
       page: 1,
     })
@@ -48,14 +50,32 @@ describe("parseTransactionListParams", () => {
 describe("listTransactions", () => {
   const base = { sort: "newest" as const, page: 1 }
 
-  it("filters by category and date", () => {
+  it("swaps a reversed date range", () => {
+    expect(parseTransactionListParams({ from: "2026-11-20", to: "2026-11-02" }, "2026-11", { categoryIds: new Set(), methodIds: new Set() })).toMatchObject({
+      from: "2026-11-02",
+      to: "2026-11-20",
+    })
+  })
+
+  it("filters by category and date range", () => {
     expect(listTransactions(rows, { ...base, category: "food" }).rows.map((t) => t.id)).toEqual(["a", "c", "d"])
-    expect(listTransactions(rows, { ...base, date: "2026-11-08" }).rows.map((t) => t.id)).toEqual(["b", "c"])
+    expect(listTransactions(rows, { ...base, from: "2026-11-08", to: "2026-11-08" }).rows.map((t) => t.id)).toEqual(["b", "c"])
+    expect(listTransactions(rows, { ...base, from: "2026-11-02", to: "2026-11-09" }).rows.map((t) => t.id)).toEqual(["b", "c"])
+    expect(listTransactions(rows, { ...base, from: "2026-11-08" }).rows.map((t) => t.id)).toEqual(["a", "b", "c"])
+    expect(listTransactions(rows, { ...base, to: "2026-11-08" }).rows.map((t) => t.id)).toEqual(["b", "c", "d"])
   })
 
   it("searches the note case-insensitively and filters by payment method", () => {
     expect(listTransactions(rows, { ...base, q: "PAV" }).rows.map((t) => t.id)).toEqual(["a"])
     expect(listTransactions(rows, { ...base, method: "card" }).rows.map((t) => t.id)).toEqual(["b"])
+  })
+
+  it("totals spending and income across every match, not just the page", () => {
+    const withIncome = [...rows, tx("e", "2026-11-01", 1000, "salary", { type: "income" })]
+    expect(listTransactions(withIncome, base)).toMatchObject({ spent: 655, income: 1000 })
+    expect(listTransactions(withIncome, { ...base, category: "food" })).toMatchObject({ spent: 155, income: 0 })
+    const many = Array.from({ length: PAGE_SIZE + 3 }, (_, i) => tx(`m${i}`, "2026-11-01", 2))
+    expect(listTransactions(many, { ...base, page: 2 }).spent).toBe((PAGE_SIZE + 3) * 2)
   })
 
   it("sorts", () => {
