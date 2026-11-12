@@ -40,7 +40,17 @@ async function ensureIndexes(db: Db) {
 }
 
 export async function getDb(): Promise<Db> {
-  cache.client ??= new MongoClient(env.mongoUri).connect().catch((err) => {
+  cache.client ??= new MongoClient(env.mongoUri, {
+    // Without these, a query on a silently dropped socket never settles and the
+    // page's Suspense fallback stays up forever. Fail fast so error.tsx shows instead.
+    // (timeoutMS is ignored in driver 7.x, so bound each stage instead.)
+    socketTimeoutMS: 15_000, // no reply on a socket → close it and throw
+    waitQueueTimeoutMS: 10_000, // waiting for a free pooled connection
+    connectTimeoutMS: 10_000,
+    serverSelectionTimeoutMS: 5_000,
+    // Retire idle pooled sockets before NAT/Wi-Fi/sleep can drop them silently.
+    maxIdleTimeMS: 60_000,
+  }).connect().catch((err) => {
     cache.client = undefined
     throw err
   })
