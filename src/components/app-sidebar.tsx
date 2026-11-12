@@ -8,10 +8,15 @@ import {
   ArrowLeftRightIcon,
   BookOpenIcon,
   ChevronsUpDownIcon,
+  CircleHelpIcon,
+  InfoIcon,
   LayoutDashboardIcon,
   LogOutIcon,
+  MailIcon,
   RepeatIcon,
+  ScrollTextIcon,
   SettingsIcon,
+  ShieldIcon,
   TargetIcon,
   WalletIcon,
 } from "lucide-react"
@@ -28,6 +33,7 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -43,6 +49,14 @@ const LINKS = [
   { href: "/goals", label: "Goals", icon: TargetIcon },
   { href: "/settings", label: "Settings", icon: SettingsIcon },
   { href: "/guide", label: "Guide", icon: BookOpenIcon },
+] as const
+
+const HELP_LINKS = [
+  { href: "/about", label: "About", icon: InfoIcon },
+  { href: "/faq", label: "FAQ", icon: CircleHelpIcon },
+  { href: "/contact", label: "Contact", icon: MailIcon },
+  { href: "/privacy", label: "Privacy Policy", icon: ShieldIcon },
+  { href: "/terms", label: "Terms & Conditions", icon: ScrollTextIcon },
 ] as const
 
 export function AppSidebar({ footer }: { footer: ReactNode }) {
@@ -83,6 +97,25 @@ export function AppSidebar({ footer }: { footer: ReactNode }) {
                   </SidebarMenuItem>
                 )
               })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup className="mt-auto">
+          <SidebarGroupLabel>Help &amp; legal</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu aria-label="Help and legal">
+              {HELP_LINKS.map(({ href, label, icon: Icon }) => (
+                <SidebarMenuItem key={href}>
+                  <SidebarMenuButton
+                    size="sm"
+                    tooltip={label}
+                    render={<Link href={href} onClick={closeOnMobile} />}
+                  >
+                    <Icon />
+                    <span>{label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

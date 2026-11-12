@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
+import { UNAUTHENTICATED_PATHS as PUBLIC_PATHS } from "@/lib/site"
 
 const SESSION_COOKIE = "fs_session"
-const PUBLIC_PATHS = ["/login", "/register", "/forgot-password"]
 
 /**
  * Optimistic check only: no cookie → send to /login (or 401 for the API).

@@ -25,6 +25,8 @@ pnpm dev
 | `MONGODB_DB` | Database name (default `finance_snapshot`) |
 | `SIGNATURE_KEY` | 32-byte key (`openssl rand -base64 32`). Changing it makes stored signatures unreadable. |
 | `SIGNUP_ENABLED` | Set to `false` to turn off sign-up (PRD §10). |
+| `NEXT_PUBLIC_SITE_URL` | Canonical URL for the sitemap, robots.txt and metadata. Falls back to Vercel's production domain. |
+| `NEXT_PUBLIC_CONTACT_EMAIL` | Address shown on the Contact, Privacy and Terms pages. |
 
 Indexes are created automatically on first connection.
 
@@ -48,6 +50,8 @@ src/
   app/
     (auth)/                login, register, forgot-password
     (app)/                 dashboard, transactions, recurring, goals, settings (+ error.tsx)
+    (public)/              about, faq, contact, privacy, terms (no login, indexable)
+    robots.ts, sitemap.ts, manifest.ts   /robots.txt, /sitemap.xml, /manifest.webmanifest
     actions/               Server Actions — every one re-checks the session and scopes by userId
     api/export/            JSON export (Route Handler)
   lib/

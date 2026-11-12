@@ -2,6 +2,7 @@ import { Suspense } from "react"
 import { redirect } from "next/navigation"
 import { WalletIcon } from "lucide-react"
 import { ModeToggle } from "@/components/mode-toggle"
+import { SiteFooter } from "@/components/public/site-footer"
 import { getCurrentUser } from "@/lib/auth/dal"
 
 /** Signed-in users don't need the auth screens. */
@@ -27,6 +28,7 @@ export default function AuthLayout({ children }: LayoutProps<"/">) {
         </div>
       </div>
       <div className="w-full max-w-sm">{children}</div>
+      <SiteFooter />
     </main>
   )
 }
