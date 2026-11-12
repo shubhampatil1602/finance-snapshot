@@ -28,7 +28,7 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
           <span className="text-sm font-medium md:hidden">Finance Snapshot</span>
           <ModeToggle className="ml-auto -mr-1" />
         </header>
-        <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 pb-6 md:px-6">{children}</main>
+        <main className="flex w-full flex-1 flex-col gap-6 px-4 pb-6 md:px-6">{children}</main>
       </SidebarInset>
     </SidebarProvider>
   )
